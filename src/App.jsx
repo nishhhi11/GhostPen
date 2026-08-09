@@ -4,9 +4,7 @@ import LandingPage from './pages/LandingPage'
 import CreateDropPage from './pages/CreateDropPage'
 import DropPage from './pages/DropPage'
 import DashboardPage from './pages/DashboardPage'
-
-// Temporary placeholders for future pages
-const DemoPage = () => <div className="min-h-screen flex items-center justify-center text-white/50">Demo Page (Coming Soon)</div>
+import DemoPage from './pages/DemoPage'
 
 function App() {
   return (

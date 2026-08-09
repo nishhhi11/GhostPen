@@ -107,6 +107,19 @@ app.get('/api/dashboard/:id', (req, res) => {
   });
 });
 
+app.delete('/api/drops/:id', (req, res) => {
+  const { token } = req.query;
+  const drop = drops.get(req.params.id);
+  
+  if (!drop || drop.creatorToken !== token) {
+    return res.status(404).json({ error: 'Drop not found or invalid token' });
+  }
+  
+  drops.delete(req.params.id);
+  
+  res.json({ success: true, destroyed: true });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`Server running on http://127.0.0.1:${PORT}`);

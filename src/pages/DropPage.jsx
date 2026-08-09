@@ -14,6 +14,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import exifr from 'exifr';
+import { encryptData, importKeyFromBase64 } from '../lib/crypto';
+import ThemeToggle from '../components/ui/ThemeToggle';
 
 const FadeIn = ({ children, delay = 0, className = "" }) => (
   <motion.div
@@ -250,10 +252,27 @@ export default function DropPage() {
         fileType = file.type;
       }
       
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const keyString = hashParams.get('key');
+      if (!keyString) throw new Error("No session key found in URL.");
+      const key = await importKeyFromBase64(keyString);
+      
+      let payloadText = text;
+      if (text) {
+        const encrypted = await encryptData(text, key);
+        payloadText = JSON.stringify(encrypted);
+      }
+      
+      let payloadFileData = fileData;
+      if (fileData) {
+        const encryptedFile = await encryptData(fileData, key);
+        payloadFileData = JSON.stringify(encryptedFile);
+      }
+      
       const response = await fetch(`/api/drops/${id}/submit?token=${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, fileData, fileName, fileType })
+        body: JSON.stringify({ text: payloadText, fileData: payloadFileData, fileName, fileType })
       });
       
       if (!response.ok) {
@@ -279,46 +298,54 @@ export default function DropPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-mono-900">
+      {/* Grid Noise */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
+
       {/* Header */}
-      <header className="w-full max-w-3xl mx-auto px-6 py-8 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-white/40" />
-          <span className="text-sm font-medium text-white/40">GhostPen</span>
+      <header className="relative z-10 w-full max-w-3xl mx-auto px-6 py-8 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-mono-text-muted" />
+            <span className="text-sm font-medium font-mono text-mono-text-muted">GhostPen</span>
+          </div>
         </div>
         
-        <div className="flex items-center gap-2 text-white/50 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-xs font-medium">
+        <div className="flex items-center gap-2 text-mono-text-muted bg-mono-800 border border-mono-border px-4 py-1.5 rounded-full text-xs font-mono">
           <Clock className="w-3.5 h-3.5" />
           <span>{timeLeft === 'Expired' || timeLeft === 'Error' ? timeLeft : `Expires in ${timeLeft}`}</span>
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-2xl mx-auto px-6 py-6 pb-20">
+      <main className="relative z-10 flex-1 w-full max-w-2xl mx-auto px-6 py-6 pb-20">
         {isSubmitted ? (
           <FadeIn>
             <div className="flex flex-col items-center justify-center text-center mt-20">
-              <div className="w-16 h-16 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-6">
-                <CheckCircle2 className="w-8 h-8 text-green-400" />
+              <div className="flex items-center justify-center mb-8">
+                <CheckCircle2 className="w-14 h-14 text-mono-text" />
               </div>
-              <h1 className="text-2xl font-semibold mb-3 text-white">Evidence submitted successfully. You can safely close this session.</h1>
+              <h1 className="text-3xl font-semibold mb-4 text-mono-text">Session Closed</h1>
+              <p className="text-mono-text-muted text-balance max-w-md mx-auto">Evidence submitted successfully. The secure channel has been terminated.</p>
             </div>
           </FadeIn>
         ) : (
           <>
             <FadeIn>
-              <div className="mb-8">
-                <h1 className="text-3xl font-semibold mb-3 text-white">Submit Evidence</h1>
-                <p className="text-white/50 text-balance leading-relaxed">
-                  Your connection is secure. Everything submitted here is securely encoded before it ever reaches our servers.
+              <div className="mb-10 text-center">
+                <h1 className="text-4xl font-semibold mb-4 text-mono-text tracking-tight">Submit Evidence</h1>
+                <p className="text-mono-text-muted text-balance leading-relaxed text-sm max-w-lg mx-auto">
+                  Your connection is secure. Everything submitted here is encrypted client-side before it ever reaches our servers.
                 </p>
               </div>
             </FadeIn>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-8 bg-mono-800 border border-mono-border p-8 rounded">
+
           {/* Text Area */}
           <FadeIn delay={0.1}>
             <div className="space-y-2">
-              <label htmlFor="content" className="block text-sm font-medium text-white/70">
+              <label htmlFor="content" className="block text-sm font-medium font-mono text-mono-text-muted">
                 What happened?
               </label>
               <textarea
@@ -326,7 +353,7 @@ export default function DropPage() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Provide context, descriptions, or raw information here..."
-                className="w-full h-40 bg-graphite-800 border border-white/10 rounded-xl p-4 text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all resize-none shadow-inner"
+                className="w-full h-40 bg-mono-900 border border-mono-border-strong rounded p-4 text-mono-text placeholder-mono-text-faint focus:outline-none focus:border-mono-text transition-colors resize-none relative z-10"
               />
             </div>
           </FadeIn>
@@ -334,14 +361,14 @@ export default function DropPage() {
           {/* Image Upload */}
           <FadeIn delay={0.2}>
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-white/70">
+              <label className="block text-sm font-medium font-mono text-mono-text-muted">
                 Supporting Image (Optional)
               </label>
               
               {!file ? (
                 <div 
-                  className={`w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors ${
-                    dragActive ? 'border-white/40 bg-white/5' : 'border-white/10 hover:border-white/20 hover:bg-white/[0.02]'
+                  className={`w-full border border-dashed rounded p-8 flex flex-col items-center justify-center text-center transition-colors duration-300 relative z-10 cursor-pointer ${
+                    dragActive ? 'border-mono-text bg-mono-800' : 'border-mono-border-strong hover:border-mono-text bg-mono-900'
                   }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
@@ -356,27 +383,27 @@ export default function DropPage() {
                     onChange={handleChange}
                     className="hidden"
                   />
-                  <UploadCloud className="w-8 h-8 text-white/30 mb-3" />
-                  <p className="text-sm text-white/80 font-medium mb-1">Click to upload or drag and drop</p>
-                  <p className="text-xs text-white/40">JPG, JPEG, PNG up to 10MB</p>
+                  <UploadCloud className="w-8 h-8 text-mono-text-muted mb-3" />
+                  <p className="text-sm text-mono-text font-medium mb-1">Click to upload or drag and drop</p>
+                  <p className="text-xs font-mono text-mono-text-faint">JPG, JPEG, PNG up to 10MB</p>
                 </div>
               ) : (
-                <div className="w-full border border-white/10 rounded-xl p-4 bg-graphite-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-10 h-10 rounded bg-white/5 flex items-center justify-center shrink-0">
-                      <FileImage className="w-5 h-5 text-white/70" />
+                <div className="w-full border border-mono-border-strong rounded p-4 bg-mono-900 flex items-center justify-between relative z-10">
+                  <div className="flex items-center gap-4 overflow-hidden">
+                    <div className="w-12 h-12 rounded bg-mono-800 border border-mono-border flex items-center justify-center shrink-0">
+                      <FileImage className="w-5 h-5 text-mono-text-muted" />
                     </div>
                     <div className="truncate">
-                      <p className="text-sm font-medium text-white/90 truncate">{file.name}</p>
-                      <p className="text-xs text-white/40">{formatSize(file.size)}</p>
+                      <p className="text-sm font-medium text-mono-text truncate">{file.name}</p>
+                      <p className="text-xs font-mono text-mono-text-faint">{formatSize(file.size)}</p>
                     </div>
                   </div>
                   <button 
                     type="button" 
                     onClick={removeFile}
-                    className="p-2 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                    className="p-2 rounded hover:bg-mono-800 transition-colors shrink-0"
                   >
-                    <X className="w-4 h-4 text-white/50 hover:text-white" />
+                    <X className="w-4 h-4 text-mono-text-muted hover:text-mono-text" />
                   </button>
                 </div>
               )}
@@ -384,17 +411,17 @@ export default function DropPage() {
           </FadeIn>
 
           {/* Metadata Shield Card */}
-          {file && (originalMetadataStatus || metadataStatus) && (
-            <FadeIn delay={0.25}>
-              <div className="w-full border border-white/10 rounded-xl bg-graphite-800 overflow-hidden">
-                <div className={`px-4 py-3 border-b flex items-center justify-between ${isSanitized ? 'bg-green-500/10 border-green-500/20' : 'bg-white/5 border-white/10'}`}>
+          {file && (
+            <FadeIn delay={0.25} className="relative z-10">
+              <div className="w-full border border-mono-border-strong rounded bg-mono-900 overflow-hidden relative group">
+                <div className={`px-4 py-3 border-b flex items-center justify-between transition-colors duration-500 ${isSanitized ? 'bg-mono-800 border-green-500/30' : 'bg-mono-800 border-mono-border-strong'}`}>
                   <div className="flex items-center gap-2">
                     {isSanitized ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
                     ) : (
-                      <Shield className="w-4 h-4 text-white/70" />
+                      <Shield className="w-4 h-4 text-mono-text-muted" />
                     )}
-                    <span className={`text-sm font-medium ${isSanitized ? 'text-green-400' : 'text-white/90'}`}>
+                    <span className={`text-sm font-medium font-mono ${isSanitized ? 'text-green-500' : 'text-mono-text'}`}>
                       {isSanitized ? 'Privacy Shield Active' : 'Privacy Scan'}
                     </span>
                   </div>
@@ -403,7 +430,7 @@ export default function DropPage() {
                       type="button"
                       onClick={sanitizeImage}
                       disabled={isScanning}
-                      className="px-3 py-1.5 bg-yellow-400 text-yellow-950 text-xs font-semibold rounded hover:bg-yellow-300 transition-colors disabled:opacity-50"
+                      className="px-3 py-1.5 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-mono-800 transition-colors disabled:opacity-50"
                     >
                       {isScanning ? 'Sanitizing...' : 'Sanitize Image'}
                     </button>
@@ -422,25 +449,29 @@ export default function DropPage() {
                       const hasAnyMetadata = metadataStatus && Object.values(metadataStatus).some(Boolean);
                       
                       let statusText = 'NOT FOUND';
-                      let statusColor = 'text-white/40';
+                      let statusColor = 'text-mono-text-faint';
                       let Icon = CheckCircle2;
                       
-                      if (isFoundNow) {
+                      if (!metadataStatus) {
+                        statusText = 'SCANNING...';
+                        statusColor = 'text-mono-text-faint';
+                        Icon = Clock;
+                      } else if (isFoundNow) {
                         statusText = 'FOUND';
-                        statusColor = 'text-yellow-400';
+                        statusColor = 'text-yellow-500';
                         Icon = AlertCircle;
                       } else if (!hasAnyMetadata) {
                         statusText = 'CLEAN';
-                        statusColor = 'text-green-400';
+                        statusColor = 'text-green-500';
                         Icon = CheckCircle2;
                       }
 
                       return (
-                        <div key={key} className="flex items-center gap-2 p-2 rounded-lg bg-white/5 border border-white/5">
+                        <div key={key} className="flex items-center gap-3 p-3 rounded bg-mono-800 border border-mono-border">
                           <Icon className={`w-4 h-4 ${statusColor}`} />
                           <div>
-                            <p className="text-xs font-medium text-white/80">{label}</p>
-                            <p className={`text-[10px] uppercase tracking-wider font-semibold ${statusColor}`}>
+                            <p className="text-xs font-medium text-mono-text-muted">{label}</p>
+                            <p className={`text-[10px] font-mono uppercase tracking-wider ${statusColor}`}>
                               {statusText}
                             </p>
                           </div>
@@ -456,24 +487,24 @@ export default function DropPage() {
           {/* Error Message */}
           {error && (
             <FadeIn>
-              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3 text-red-400">
+              <div className="p-4 rounded border border-red-500/30 bg-mono-900 flex items-start gap-3 text-red-500">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <p className="text-sm font-medium">{error}</p>
+                <p className="text-sm font-medium font-mono">{error}</p>
               </div>
             </FadeIn>
           )}
 
           {/* Submit Action */}
-          <FadeIn delay={0.3} className="pt-4">
-            <div className="flex items-center gap-2 justify-center mb-4 text-xs text-white/40">
+          <FadeIn delay={0.3} className="pt-6 relative z-10">
+            <div className="flex items-center gap-2 justify-center mb-5 text-[11px] font-medium font-mono uppercase tracking-widest text-mono-text-faint">
               <Lock className="w-3.5 h-3.5" />
-              <span>Everything is securely encoded before leaving this device.</span>
+              <span>End-to-End Encrypted</span>
             </div>
             
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-4 rounded-xl bg-white text-graphite-900 font-semibold hover:bg-white/90 disabled:opacity-70 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+              className="w-full py-4 bg-mono-accent text-mono-900 font-mono rounded hover:bg-mono-text transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isSubmitting ? 'Submitting securely...' : 'Continue Securely'}
               {!isSubmitting && <ArrowRight className="w-4 h-4" />}
